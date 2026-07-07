@@ -1,11 +1,9 @@
-name: Python Hello World CI
+name: Artifacts Upload Download Demo
 
-on:
-  push:
-    branches: [ main ]
+on: workflow_dispatch
 
 jobs:
-  run-script:
+  generate-output:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -16,6 +14,38 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Application Started
+      - name: Run report generator
+        run: python3 artifacts/generate_report.py
+
+      - name: Upload test report and logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            artifacts/test-report.json
+            artifacts/build.log
+          retention-days: 7
+
+  use-output:
+    needs: generate-output
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: test-results
+          path: downloaded-artifacts
+
+      - name: List downloaded files
+        run: ls -la downloaded-artifacts/
+
+      - name: Show test report content
+        run: cat downloaded-artifacts/test-report.json
+
+      - name: Fail the job if tests failed
         run: |
-          python3 app.py
+          FAILED=$(python3 -c "import json; print(json.load(open('downloaded-artifacts/test-report.json'))['failed'])")
+          echo "Failed test count: $FAILED"
+          if [ "$FAILED" -gt "0" ]; then
+            echo "::warning::$FAILED test(s) failed in this run"
+          fi
